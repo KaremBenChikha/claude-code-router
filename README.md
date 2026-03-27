@@ -190,8 +190,8 @@ DEEPSEEK_BIG_MODEL=deepseek-chat
 DEEPSEEK_SMALL_MODEL=deepseek-chat
 
 NVIDIA_API_KEY=nvapi-your-real-key-here
-NVIDIA_BIG_MODEL=nvidia/nemotron-3-super-120b-a12b:free
-NVIDIA_SMALL_MODEL=nvidia/nemotron-3-super-120b-a12b:free
+NVIDIA_BIG_MODEL=nvidia/nemotron-3-super-120b-a12b
+NVIDIA_SMALL_MODEL=nvidia/nemotron-3-super-120b-a12b
 ```
 
 ### 4. Wire the shell functions (one time only)
@@ -389,7 +389,7 @@ Different providers have varying tool calling implementations. Check:
 | Provider | Model (big) | Model (small) | Pricing | API Endpoint | Notes |
 |---|---|---|---|---|---|
 | DeepSeek | `deepseek-chat` (V3) | `deepseek-chat` | Pay-per-use (very cheap) | `https://api.deepseek.com/v1` | 8192 token limit, good tool support |
-| NVIDIA Nemotron | `nvidia/nemotron-3-super-120b-a12b:free` | `nvidia/nemotron-3-super-120b-a12b:free` | Free tier available | `https://integrate.api.nvidia.com/v1` | High-quality 120B parameter model, rate limits apply |
+| NVIDIA Nemotron | `nvidia/nemotron-3-super-120b-a12b` | `nvidia/nemotron-3-super-120b-a12b` | Free tier available | `https://integrate.api.nvidia.com/v1` | High-quality 120B parameter model, rate limits apply |
 
 ### Cost Comparison (Approximate)
 

@@ -31,8 +31,8 @@ PROVIDERS = {
     "nvidia": {
         "base_url":    "https://integrate.api.nvidia.com/v1",
         "api_key":     os.environ.get("NVIDIA_API_KEY", ""),
-        "big_model":   os.environ.get("NVIDIA_BIG_MODEL",   "nvidia/nemotron-4-340b-instruct"),
-        "small_model": os.environ.get("NVIDIA_SMALL_MODEL", "nvidia/nemotron-3-nano-30b-a3b"),
+        "big_model":   os.environ.get("NVIDIA_BIG_MODEL",   "nvidia/nemotron-3-super-120b-a12b"),
+        "small_model": os.environ.get("NVIDIA_SMALL_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
     },
 }
 
@@ -62,6 +62,12 @@ async def ping():
         "max_tokens": 10,
         "stream":     False,
     }
+    # NVIDIA Nemotron 3 Super specific configuration
+    if PROVIDER == "nvidia":
+        payload["extra_body"] = {
+            "chat_template_kwargs": {"enable_thinking": True},
+            "reasoning_budget": 8192
+        }
     headers = {"Authorization": f"Bearer {prov['api_key']}", "Content-Type": "application/json"}
     try:
         async with httpx.AsyncClient(timeout=20) as client:
@@ -155,6 +161,12 @@ def build_oai_req(body: dict, model: str) -> dict:
             if isinstance(tc, dict) and tc.get("type") == "tool"
             else tc.get("type", "auto")
         )
+    # NVIDIA Nemotron 3 Super specific configuration
+    if PROVIDER == "nvidia":
+        req["extra_body"] = {
+            "chat_template_kwargs": {"enable_thinking": True},
+            "reasoning_budget": 8192
+        }
     return req
 
 # ─── OpenAI → Claude conversion ──────────────────────────────────────────────
@@ -206,9 +218,15 @@ async def stream_oai_to_claude(resp: httpx.Response) -> AsyncGenerator[str, None
         if data.strip() == "[DONE]": break
         try:
             delta = json.loads(data).get("choices", [{}])[0].get("delta", {})
+            # Handle NVIDIA Nemotron 3 Super thinking content
+            text_to_send = ""
+            if delta.get("reasoning_content"):
+                text_to_send += f"<thinking>{delta['reasoning_content']}</thinking>"
             if delta.get("content"):
+                text_to_send += delta["content"]
+            if text_to_send:
                 yield E("content_block_delta", {"type": "content_block_delta", "index": 0,
-                    "delta": {"type": "text_delta", "text": delta["content"]}})
+                    "delta": {"type": "text_delta", "text": text_to_send}})
             for tc in delta.get("tool_calls", []):
                 i = tc.get("index", 0)
                 if i not in tcs: tcs[i] = {"id": "", "name": "", "arguments": ""}

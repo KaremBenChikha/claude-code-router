@@ -1,0 +1,56 @@
+CLAUDE_ROUTER_DIR="$HOME/Documents/claude-code-router"
+CLAUDE_ROUTER_PYTHON="$CLAUDE_ROUTER_DIR/venv/bin/python3"
+CLAUDE_ROUTER_STATE="$CLAUDE_ROUTER_DIR/.state"
+
+[ -f "$CLAUDE_ROUTER_STATE" ] && source "$CLAUDE_ROUTER_STATE"
+
+_start_router() {
+  local provider="${1:-deepseek}"
+  pkill -f "ai_router.py" 2>/dev/null
+  sleep 0.3
+  AI_PROVIDER="$provider" "$CLAUDE_ROUTER_PYTHON" "$CLAUDE_ROUTER_DIR/ai_router.py" \
+    >> "$CLAUDE_ROUTER_DIR/router.log" 2>&1 &
+  sleep 2
+  export ANTHROPIC_BASE_URL="http://localhost:8082"
+  export ANTHROPIC_API_KEY="proxy-key"
+  printf 'export ANTHROPIC_BASE_URL=http://localhost:8082\nexport ANTHROPIC_API_KEY=proxy-key\n' \
+    > "$CLAUDE_ROUTER_STATE"
+  echo ""
+  echo "✅  Routing → $provider  (all terminals now use $provider)"
+  echo "    Open any project and run: claude"
+  echo ""
+}
+
+use-deepseek() { _start_router deepseek; }
+use-nvidia()   { _start_router nvidia;   }
+
+use-claude() {
+  pkill -f "ai_router.py" 2>/dev/null
+  unset ANTHROPIC_BASE_URL
+  unset ANTHROPIC_API_KEY
+  rm -f "$CLAUDE_ROUTER_STATE"
+  echo ""
+  echo "✅  Back to Claude Pro  (proxy stopped)"
+  echo ""
+}
+
+claude-mode() {
+  echo ""
+  if [ -n "$ANTHROPIC_BASE_URL" ]; then
+    local prov
+    prov=$(curl -s http://localhost:8082/health 2>/dev/null \
+      | "$CLAUDE_ROUTER_PYTHON" -c \
+        "import sys,json; d=json.load(sys.stdin); print(d.get('provider','?').upper())" 2>/dev/null)
+    echo "🔀  PROXY MODE  →  ${prov:-unknown}"
+    echo "    $ANTHROPIC_BASE_URL"
+  else
+    echo "☁️   CLAUDE PRO  →  Direct Anthropic"
+  fi
+  echo ""
+}
+
+alias router-start='cd ~/Documents/claude-code-router && source venv/bin/activate && python ai_router.py'
+alias router-stop='pkill -f ai_router.py && echo "Router stopped."'
+alias router-status='curl -s http://localhost:8082/health | python3 -m json.tool'
+alias router-ping='curl -s http://localhost:8082/ping | python3 -m json.tool'
+alias router-logs='tail -f ~/Documents/claude-code-router/router.log'

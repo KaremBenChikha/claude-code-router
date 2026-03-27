@@ -4,8 +4,7 @@
 
 <h3>🚀 Personal Claude Code Proxy for DeepSeek & NVIDIA</h3>
 
-<p>A simple, open-source alternative to commercial solutions like <a href="https://github.com/BlockRunAI/brcc">brcc</a>.<br>
-When Claude Code hits rate limits, route to <strong>DeepSeek V3</strong> or <strong>NVIDIA Nemotron</strong> instead.</p>
+<p>When Claude Code hits rate limits, route to <strong>DeepSeek V3</strong> or <strong>NVIDIA Nemotron-3 Super 120B</strong> instead.</p>
 
 <br>
 
@@ -15,13 +14,17 @@ When Claude Code hits rate limits, route to <strong>DeepSeek V3</strong> or <str
 <img src="https://img.shields.io/badge/💰_API_Keys-purple?style=for-the-badge" alt="API Keys">&nbsp;
 <img src="https://img.shields.io/badge/⚡_Transparent_Proxy-green?style=for-the-badge" alt="Transparent Proxy">
 
+![Python](https://img.shields.io/badge/python-3.10+-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
+
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
 </div>
 
-> **Note**: This is a **personal, DIY proxy** for developers who want a simple solution. For a commercial alternative with 50+ models, smart routing, and USDC payments, check out **[brcc](https://github.com/BlockRunAI/brcc)**.
+> **Note**: This is a **personal, DIY proxy** for developers who want a simple solution to route Claude Code to alternative AI providers.
 
 ## 🚀 Quick Start
 
@@ -47,12 +50,12 @@ cd ~/your-project
 claude
 ```
 
-A local FastAPI proxy that transparently routes **Claude Code** API calls to **DeepSeek V3** or **NVIDIA Nemotron** when your Anthropic rate limits hit.
+A local FastAPI proxy that transparently routes **Claude Code** API calls to **DeepSeek V3** or **NVIDIA Nemotron-3 Super 120B** when your Anthropic rate limits hit.
 
 Claude Code thinks it's talking to Anthropic. The router intercepts every request, converts the Claude message format to OpenAI-compatible JSON, forwards it to your chosen provider, and converts the response back — completely transparent.
 
 ```
-Claude Code ──► localhost:8082 ──► DeepSeek V3  (or NVIDIA Nemotron)
+Claude Code ──► localhost:8082 ──► DeepSeek V3  (or NVIDIA Nemotron-3 Super 120B)
                  ai_router.py        ▲ your API key here
 ```
 
@@ -65,34 +68,12 @@ Claude Code users face:
 - **High costs** ($200/month) with limited usage
 - **Single provider** (only Claude models)
 
-### Solution Comparison
-
-| Feature | **claude-code-router** (this project) | **[brcc](https://github.com/BlockRunAI/brcc)** (commercial) |
-|---------|----------------------------------------|------------------------------------------------------------|
-| **Models** | 2 (DeepSeek, NVIDIA) | **50+** (GPT-5, Claude, Gemini, Grok, etc.) |
-| **Payment** | Traditional API keys | **USDC micropayments** (x402 protocol) |
-| **Smart Routing** | Manual switching | **Automatic** (15-dimension classifier) |
-| **Fallback** | None | **Automatic** (multiple backup chains) |
-| **Cost** | Pay-per-use (provider rates) | Pay-per-use (aggregated rates) |
-| **Setup** | Manual (Python, env vars) | **One-line install** |
-| **Statistics** | None | **Detailed usage stats & savings** |
-| **Wallet** | N/A | **Built-in** (Base/Solana USDC) |
-| **License** | MIT (open source) | BUSL-1.1 (commercial) |
-| **Best For** | **DIY developers**, simple needs | **Production use**, maximum flexibility |
-
 ### When to Use This Project
 - ✅ **You prefer open source** and want to understand/modify the code
 - ✅ **You only need DeepSeek or NVIDIA** models
 - ✅ **You already have API keys** for these providers
 - ✅ **You want a simple, transparent proxy** without complex features
 - ✅ **You're comfortable with Python** and command line setup
-
-### When to Consider brcc
-- ✅ **You need access to 50+ models** (GPT-5, Gemini, Grok, etc.)
-- ✅ **You want automatic smart routing** and fallback
-- ✅ **You prefer USDC payments** over API keys
-- ✅ **You want detailed statistics** and cost tracking
-- ✅ **You need a polished, production-ready solution**
 
 ## Project Analysis
 
@@ -209,8 +190,8 @@ DEEPSEEK_BIG_MODEL=deepseek-chat
 DEEPSEEK_SMALL_MODEL=deepseek-chat
 
 NVIDIA_API_KEY=nvapi-your-real-key-here
-NVIDIA_BIG_MODEL=nvidia/nemotron-4-340b-instruct
-NVIDIA_SMALL_MODEL=nvidia/nemotron-3-nano-30b-a3b
+NVIDIA_BIG_MODEL=nvidia/nemotron-3-super-120b-a12b:free
+NVIDIA_SMALL_MODEL=nvidia/nemotron-3-super-120b-a12b:free
 ```
 
 ### 4. Wire the shell functions (one time only)
@@ -408,7 +389,7 @@ Different providers have varying tool calling implementations. Check:
 | Provider | Model (big) | Model (small) | Pricing | API Endpoint | Notes |
 |---|---|---|---|---|---|
 | DeepSeek | `deepseek-chat` (V3) | `deepseek-chat` | Pay-per-use (very cheap) | `https://api.deepseek.com/v1` | 8192 token limit, good tool support |
-| NVIDIA Nemotron | `nvidia/nemotron-4-340b-instruct` | `nvidia/nemotron-3-nano-30b-a3b` | Free tier available | `https://integrate.api.nvidia.com/v1` | High-quality models, rate limits apply |
+| NVIDIA Nemotron | `nvidia/nemotron-3-super-120b-a12b:free` | `nvidia/nemotron-3-super-120b-a12b:free` | Free tier available | `https://integrate.api.nvidia.com/v1` | High-quality 120B parameter model, rate limits apply |
 
 ### Cost Comparison (Approximate)
 
@@ -447,7 +428,7 @@ To add a new provider:
 
 #### NVIDIA Nemotron
 - **Free tier**: Limited requests per day
-- **Model variety**: Multiple model sizes available
+- **Model**: Nemotron-3 Super 120B (120 billion parameter model)
 - **Rate limits**: Apply to free tier usage
 - **API stability**: Enterprise-grade infrastructure
 - **Tool calling**: Generally good compatibility
@@ -520,8 +501,8 @@ python-dotenv>=1.0.0
 - **Format conversion** logic is centralized and reusable
 - **Shell integration** provides user-friendly interface
 
-### Potential Enhancements (Inspired by brcc)
-This project could be extended with features from commercial solutions:
+### Potential Enhancements
+This project could be extended with additional features:
 
 1. **Multiple Provider Support**
    ```python
@@ -555,51 +536,9 @@ This project could be extended with features from commercial solutions:
 
 MIT — use freely, modify freely.
 
-## Migration to brcc (Commercial Alternative)
-
-If you need more features than this simple proxy provides, consider migrating to **[brcc](https://github.com/BlockRunAI/brcc)**:
-
-### Migration Steps
-1. **Install brcc** (replaces this proxy):
-   ```bash
-   sudo npm install -g @blockrun/cc
-   ```
-
-2. **Set up wallet** (replaces API keys):
-   ```bash
-   brcc setup base      # or brcc setup solana
-   ```
-
-3. **Fund with USDC** (replaces provider accounts):
-   - Send USDC to your wallet address
-   - $5-10 is enough for weeks of usage
-
-4. **Start using**:
-   ```bash
-   brcc start          # Smart routing with 50+ models
-   ```
-
-### Feature Comparison
-
-| Your Current Setup | With brcc |
-|-------------------|-----------|
-| Manual provider switching | **Automatic smart routing** |
-| 2 models (DeepSeek/NVIDIA) | **50+ models** (GPT-5, Gemini, Grok, etc.) |
-| API key management | **USDC wallet** (no keys) |
-| No fallback | **Automatic error recovery** |
-| No statistics | **Detailed usage analytics** |
-| Manual setup | **One-line installation** |
-
-### When to Migrate
-- ✅ You need access to **GPT-5, Gemini, or Grok** models
-- ✅ You want **automatic model selection** based on task complexity
-- ✅ You're tired of managing **multiple API keys**
-- ✅ You need **production reliability** with fallback chains
-- ✅ You want **detailed cost tracking** and savings analysis
 
 ## Acknowledgments
 
 - **Claude Code** for the excellent CLI tool
 - **DeepSeek** and **NVIDIA** for providing alternative AI APIs
 - **FastAPI** and **httpx** for the robust Python web stack
-- **BlockRun/brcc** for inspiration on commercial proxy solutions

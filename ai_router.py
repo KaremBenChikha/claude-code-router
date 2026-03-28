@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Claude Code Router
-Routes Claude Code → DeepSeek V3 or NVIDIA Nemotron when limits hit.
+Routes Claude Code → DeepSeek V3 or DeepSeek V3 (via NVIDIA) when limits hit.
 """
 
-import os, json, uuid
+import os, json, uuid, socket
 import httpx
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -31,8 +31,8 @@ PROVIDERS = {
     "nvidia": {
         "base_url":    "https://integrate.api.nvidia.com/v1",
         "api_key":     os.environ.get("NVIDIA_API_KEY", ""),
-        "big_model":   os.environ.get("NVIDIA_BIG_MODEL",   "nvidia/nemotron-3-super-120b-a12b"),
-        "small_model": os.environ.get("NVIDIA_SMALL_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
+        "big_model":   os.environ.get("NVIDIA_BIG_MODEL",   "deepseek-ai/deepseek-v3.2"),
+        "small_model": os.environ.get("NVIDIA_SMALL_MODEL", "deepseek-ai/deepseek-v3.2"),
     },
 }
 
@@ -62,11 +62,10 @@ async def ping():
         "max_tokens": 10,
         "stream":     False,
     }
-    # NVIDIA Nemotron 3 Super specific configuration
+    # NVIDIA (DeepSeek via NVIDIA) specific configuration
     if PROVIDER == "nvidia":
         payload["extra_body"] = {
-            "chat_template_kwargs": {"enable_thinking": True},
-            "reasoning_budget": 8192
+            "chat_template_kwargs": {"thinking": True}
         }
     headers = {"Authorization": f"Bearer {prov['api_key']}", "Content-Type": "application/json"}
     try:
@@ -74,7 +73,7 @@ async def ping():
             r = await client.post(f"{prov['base_url']}/chat/completions", json=payload, headers=headers)
         if r.status_code == 200:
             reply = r.json()["choices"][0]["message"]["content"]
-            return {"status": "ok", "provider": PROVIDER, "reply": reply.strip()}
+            return {"status": "ok", "provider": PROVIDER, "reply": reply.strip() if reply else ""}
         return JSONResponse({"status": "error", "http": r.status_code, "body": r.text}, status_code=r.status_code)
     except httpx.ConnectError as e:
         return JSONResponse({"status": "error", "reason": str(e)}, status_code=503)
@@ -161,11 +160,10 @@ def build_oai_req(body: dict, model: str) -> dict:
             if isinstance(tc, dict) and tc.get("type") == "tool"
             else tc.get("type", "auto")
         )
-    # NVIDIA Nemotron 3 Super specific configuration
+    # NVIDIA (DeepSeek via NVIDIA) specific configuration
     if PROVIDER == "nvidia":
         req["extra_body"] = {
-            "chat_template_kwargs": {"enable_thinking": True},
-            "reasoning_budget": 8192
+            "chat_template_kwargs": {"thinking": True}
         }
     return req
 
@@ -179,7 +177,7 @@ def oai_to_claude(oai: dict, orig_model: str) -> dict:
     content = []
     if msg.get("content"):
         content.append({"type": "text", "text": msg["content"]})
-    for tc in msg.get("tool_calls", []):
+    for tc in msg.get("tool_calls") or []:
         try:    args = json.loads(tc["function"]["arguments"])
         except: args = {}
         content.append({"type": "tool_use", "id": tc["id"],
@@ -218,7 +216,7 @@ async def stream_oai_to_claude(resp: httpx.Response) -> AsyncGenerator[str, None
         if data.strip() == "[DONE]": break
         try:
             delta = json.loads(data).get("choices", [{}])[0].get("delta", {})
-            # Handle NVIDIA Nemotron 3 Super thinking content
+            # Handle DeepSeek thinking content (via NVIDIA)
             text_to_send = ""
             if delta.get("reasoning_content"):
                 text_to_send += f"<thinking>{delta['reasoning_content']}</thinking>"
@@ -291,8 +289,24 @@ async def list_models():
         {"id": "claude-opus-4-5",            "object": "model"},
     ]}
 
+def is_port_available(port: int) -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("127.0.0.1", port))
+        return True
+    except OSError:
+        return False
+
 if __name__ == "__main__":
     prov = PROVIDERS[PROVIDER]
+
+    if not is_port_available(PORT):
+        print(f"\n❌  Port {PORT} is already in use.")
+        print(f"    Kill with: lsof -ti:{PORT} | xargs kill -9")
+        print(f"    Or change ROUTER_PORT in .env\n")
+        exit(1)
+
     print(f"\n{'═'*45}")
     print(f"  🚀  Claude Code Router")
     print(f"{'═'*45}")

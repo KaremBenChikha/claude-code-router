@@ -1,0 +1,165 @@
+================================================================================
+CLAUDE CODE ROUTER - QUICK START GUIDE
+================================================================================
+
+ONE-TIME SETUP
+================================================================================
+
+1. Navigate to project:
+   cd ~/Documents/claude-code-router
+
+2. Create Python virtual environment:
+   python3 -m venv venv
+   source venv/bin/activate
+
+3. Install dependencies:
+   pip install -r requirements.txt
+
+4. Add your API keys:
+   cp .env.example .env
+   # Edit .env with your API keys:
+   # - DEEPSEEK_API_KEY (from platform.deepseek.com)
+   # - NVIDIA_API_KEY (from build.nvidia.com)
+
+5. Load shell functions (run once):
+   source ~/.zshrc
+   # Verify with: type use-deepseek
+
+
+DAILY USAGE
+================================================================================
+
+TO USE DEEPSEEK (when Claude hits rate limits):
+   use-deepseek
+   # Proxy starts in background on port 8082
+   # All Claude Code requests now route to DeepSeek V3
+
+TO USE NVIDIA (DeepSeek V3 via NVIDIA):
+   use-nvidia
+   # Same as above, but routes to DeepSeek V3 via NVIDIA API
+
+TO SWITCH BACK TO CLAUDE PRO (direct connection):
+   use-claude
+   # Proxy stops, direct Anthropic connection restored
+
+CHECK CURRENT MODE:
+   claude-mode
+   # Shows "PROXY MODE → DEEPSEEK" or "CLAUDE PRO → Direct Anthropic"
+
+THEN USE CLAUDE NORMALLY:
+   cd ~/your-project
+   claude
+
+
+VERIFICATION & TROUBLESHOOTING
+================================================================================
+
+Check proxy is running (no API call):
+   router-status
+   Expected: {"status": "ok", "provider": "deepseek", ...}
+
+Test upstream API connection (real call):
+   router-ping
+   Expected: {"status": "ok", "provider": "deepseek", "reply": "PONG"}
+
+Watch live proxy logs:
+   router-logs
+
+Start proxy manually:
+   router-start
+
+Stop proxy manually:
+   router-stop
+
+
+COMMON ISSUES
+================================================================================
+
+Port 8082 already in use?
+   lsof -ti:8082 | xargs kill -9
+   # Then try use-deepseek again
+
+API key error (401)?
+   - Check .env file has correct keys
+   - Verify keys are not expired at platform.deepseek.com or build.nvidia.com
+
+Shell functions not found?
+   source ~/.zshrc
+
+Router won't start?
+   cd ~/Documents/claude-code-router
+   source venv/bin/activate
+   python ai_router.py
+
+
+SWITCHING MODELS IN ONE COMMAND
+================================================================================
+
+# From Claude Pro to DeepSeek (in one line):
+use-deepseek && cd ~/my-project && claude
+
+# From Claude Pro to NVIDIA (in one line):
+use-nvidia && cd ~/my-project && claude
+
+# Back to Claude Pro:
+use-claude && claude
+
+
+ENVIRONMENT VARIABLES (manual control)
+================================================================================
+
+If shell functions don't work, set env vars manually:
+
+TO USE DEEPSEEK:
+   export ANTHROPIC_BASE_URL="http://localhost:8082"
+   export ANTHROPIC_API_KEY="proxy-key"
+   # Then start proxy: cd ~/Documents/claude-code-router && python ai_router.py
+
+TO USE NVIDIA:
+   export AI_PROVIDER="nvidia"
+   # Then start proxy with: AI_PROVIDER=nvidia python ai_router.py
+
+TO DISABLE PROXY (back to Claude):
+   unset ANTHROPIC_BASE_URL
+   unset ANTHROPIC_API_KEY
+   # Kill proxy: pkill -f ai_router.py
+
+
+COST COMPARISON (approximate per request)
+================================================================================
+
+DeepSeek V3:        $0.0002–0.001 per request
+NVIDIA Nemotron:    $0.00 (free tier with limits)
+Claude Haiku:       $0.002–0.01 per request
+Claude Sonnet:      $0.006–0.03 per request
+
+
+QUICK REFERENCE - COPY & PASTE
+================================================================================
+
+# First time setup:
+cd ~/Documents/claude-code-router && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && cp .env.example .env
+
+# Switch to DeepSeek:
+use-deepseek
+
+# Switch to NVIDIA:
+use-nvidia
+
+# Back to Claude:
+use-claude
+
+# Check status:
+router-status && router-ping
+
+# View logs:
+router-logs
+
+# Stop proxy:
+router-stop
+
+
+================================================================================
+For detailed info, see README.md
+For technical details, see ai_router.py comments
+================================================================================

@@ -49,8 +49,8 @@ claude-mode() {
   echo ""
 }
 
-alias router-start='cd ~/Documents/claude-code-router && source venv/bin/activate && python ai_router.py'
+alias router-start="cd $CLAUDE_ROUTER_DIR && source venv/bin/activate && python ai_router.py"
 alias router-stop='pkill -f ai_router.py && echo "Router stopped."'
 alias router-status='curl -s http://localhost:8082/health | python3 -m json.tool'
 alias router-ping='curl -s http://localhost:8082/ping | python3 -m json.tool'
-alias router-logs='tail -f ~/Documents/claude-code-router/router.log'
+alias router-logs="tail -f $CLAUDE_ROUTER_DIR/router.log"

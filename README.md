@@ -200,6 +200,12 @@ use-deepseek
 use-nvidia
 ```
 
+### Switch to Google Gemini:
+
+```bash
+use-gemini
+```
+
 ### Claude limits reset? Go back to Claude Pro:
 
 ```bash
@@ -341,6 +347,7 @@ Different providers have varying tool calling implementations. Check:
 |---|---|---|---|---|---|
 | DeepSeek | `deepseek-chat` (V3) | `deepseek-chat` | Pay-per-use (very cheap) | `https://api.deepseek.com/v1` | 8192 token limit, good tool support |
 | NVIDIA (DeepSeek V3) | `deepseek-ai/deepseek-v3.2` | `deepseek-ai/deepseek-v3.2` | Free tier available | `https://integrate.api.nvidia.com/v1` | DeepSeek V3 via NVIDIA, rate limits apply |
+| Gemini | `gemini/gemini-3-flash-preview` | `gemini/gemini-2.5-flash-lite` | Pay-per-use | `https://generativelanguage.googleapis.com/v1beta` | Google's Gemini models, three-tier mapping |
 
 ### Cost Comparison (Approximate)
 
@@ -348,6 +355,7 @@ Different providers have varying tool calling implementations. Check:
 |-------|----------------------|----------------------|-------------------|
 | **DeepSeek V3** | $0.14 | $0.28 | **$0.0002–0.001** |
 | **NVIDIA DeepSeek V3** | Free tier | Free tier | **$0** (with limits) |
+| **Gemini 2.5 Flash** | $0.075 | $0.30 | **$0.0001–0.001** |
 | Claude Haiku 4.5 | $1.00 | $5.00 | $0.002–0.01 |
 | Claude Sonnet 4.6 | $3.00 | $15.00 | $0.006–0.03 |
 | Claude Opus 4.6 | $5.00 | $25.00 | $0.01–0.05 |
@@ -357,11 +365,10 @@ Different providers have varying tool calling implementations. Check:
 The architecture supports adding more providers easily. Popular alternatives:
 
 1. **OpenAI** (GPT-4o, GPT-4o-mini, o3-mini)
-2. **Google** (Gemini 2.5 Flash, Gemini 2.5 Pro)
-3. **Anthropic** (Claude models via direct API)
-4. **xAI** (Grok models)
-5. **MiniMax** (M2.7)
-6. **Moonshot** (Kimi K2.5)
+2. **Anthropic** (Claude models via direct API)
+3. **xAI** (Grok models)
+4. **MiniMax** (M2.7)
+5. **Moonshot** (Kimi K2.5)
 
 To add a new provider:
 1. Add entry to `PROVIDERS` dictionary in `ai_router.py`
@@ -385,10 +392,23 @@ To add a new provider:
 - **Thinking feature**: Supported with `thinking: True` configuration
 - **Tool calling**: Good compatibility with OpenAI format
 
+#### Gemini
+- **Three-tier mapping**: Default (sonnet), Big (opus), Small (haiku) models
+- **API format**: Uses Google's Generative Language API format (not OpenAI-compatible)
+- **Image support**: Limited base64 image support via proxy conversion
+- **Tool calling**: Basic support (converted to text representation)
+- **Streaming**: Supported for most models
+- **Cost**: Competitive pricing with Gemini 2.5 Flash series
+
 ### Model Mapping Logic
 The proxy uses simple heuristics to map Claude models to provider models:
 - **Claude Sonnet/Opus** → Provider's "big_model" (e.g., `deepseek-chat`)
 - **Claude Haiku** → Provider's "small_model" (e.g., `deepseek-chat`)
+
+For Gemini specifically:
+- **Claude Opus** → `GEMINI_BIG_MODEL` (gemini/gemini-3-flash-preview)
+- **Claude Sonnet** → `GEMINI_DEFAULT_MODEL` (gemini/gemini-2.5-flash)
+- **Claude Haiku** → `GEMINI_SMALL_MODEL` (gemini/gemini-2.5-flash-lite)
 
 This can be customized in `.env` by setting different model names for `*_BIG_MODEL` and `*_SMALL_MODEL`.
 

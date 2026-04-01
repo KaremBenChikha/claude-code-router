@@ -8,21 +8,31 @@ _start_router() {
   local provider="${1:-deepseek}"
   pkill -f "ai_router.py" 2>/dev/null
   sleep 0.3
+  
+  # Start the router
   AI_PROVIDER="$provider" "$CLAUDE_ROUTER_PYTHON" "$CLAUDE_ROUTER_DIR/ai_router.py" \
     >> "$CLAUDE_ROUTER_DIR/router.log" 2>&1 &
   sleep 2
+  
+  # Export vars for current terminal
   export ANTHROPIC_BASE_URL="http://localhost:8082"
   export ANTHROPIC_API_KEY="proxy-key"
-  printf 'export ANTHROPIC_BASE_URL=http://localhost:8082\nexport ANTHROPIC_API_KEY=proxy-key\n' \
+  export AI_PROVIDER="$provider"
+  
+  # Save state for NEW terminals
+  printf 'export ANTHROPIC_BASE_URL=http://localhost:8082\nexport ANTHROPIC_API_KEY=proxy-key\nexport AI_PROVIDER="%s"\n' "$provider" \
     > "$CLAUDE_ROUTER_STATE"
+    
   echo ""
   echo "✅  Routing → $provider  (all terminals now use $provider)"
   echo "    Open any project and run: claude"
   echo ""
 }
 
+
 use-deepseek() { _start_router deepseek; }
 use-nvidia()   { _start_router nvidia;   }
+use-gemini()   { _start_router gemini;   }
 
 use-claude() {
   pkill -f "ai_router.py" 2>/dev/null

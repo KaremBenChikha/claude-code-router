@@ -15,11 +15,9 @@ ONE-TIME SETUP
 3. Install dependencies:
    pip install -r requirements.txt
 
-4. Add your API keys:
+4. Add your DeepSeek API key:
    cp .env.example .env
-   # Edit .env with your API keys:
-   # - DEEPSEEK_API_KEY (from platform.deepseek.com)
-   # - NVIDIA_API_KEY (from build.nvidia.com)
+   # Edit .env: set DEEPSEEK_API_KEY from platform.deepseek.com
 
 5. Load shell functions (run once):
    source ~/.zshrc
@@ -29,28 +27,11 @@ ONE-TIME SETUP
 DAILY USAGE
 ================================================================================
 
-TO USE DEEPSEEK V4 PRO (heavy tasks — Sonnet/Opus routing):
+TO USE DEEPSEEK V4 (when Claude hits rate limits):
    use-deepseek
    # Proxy starts in background on port 8082
    # Claude Sonnet/Opus requests → deepseek-v4-pro
    # Claude Haiku requests       → deepseek-v4-flash
-
-TO USE DEEPSEEK V4 FLASH ONLY (cheaper, faster):
-   # Edit .env and set both models to deepseek-v4-flash:
-   # DEEPSEEK_BIG_MODEL=deepseek-v4-flash
-   # DEEPSEEK_SMALL_MODEL=deepseek-v4-flash
-   # Then: use-deepseek
-
-TO SWITCH MODEL INLINE (without editing .env):
-   # Override big model to flash for the current session:
-   DEEPSEEK_BIG_MODEL=deepseek-v4-flash use-deepseek
-
-   # Or use pro for everything:
-   DEEPSEEK_BIG_MODEL=deepseek-v4-pro DEEPSEEK_SMALL_MODEL=deepseek-v4-pro use-deepseek
-
-TO USE NVIDIA (DeepSeek V3 via NVIDIA):
-   use-nvidia
-   # Same as above, but routes to DeepSeek V3 via NVIDIA API
 
 TO SWITCH BACK TO CLAUDE PRO (direct connection):
    use-claude
@@ -65,20 +46,52 @@ THEN USE CLAUDE NORMALLY:
    claude
 
 
+SWITCHING BETWEEN V4 FLASH AND V4 PRO
+================================================================================
+
+Default (.env):
+   DEEPSEEK_BIG_MODEL=deepseek-v4-pro      ← Sonnet/Opus tasks
+   DEEPSEEK_SMALL_MODEL=deepseek-v4-flash  ← Haiku tasks
+
+Force Flash only (cheaper, faster) — session override:
+   DEEPSEEK_BIG_MODEL=deepseek-v4-flash use-deepseek
+
+Force Pro only (smarter) — session override:
+   DEEPSEEK_BIG_MODEL=deepseek-v4-pro DEEPSEEK_SMALL_MODEL=deepseek-v4-pro use-deepseek
+
+Swap mid-session (inside Claude Code terminal):
+   export DEEPSEEK_BIG_MODEL=deepseek-v4-flash
+   router-stop && router-start
+
+
 DEEPSEEK V4 MODEL REFERENCE
 ================================================================================
 
   deepseek-v4-pro    Heavy/complex tasks. Maps from Claude Sonnet & Opus.
-                     Supports thinking mode (reasoning_effort: high)
-                     Priced per token — slightly more expensive.
+                     $1.74/M input  |  $3.48/M output  (cache miss)
+                     $0.145/M input |  $3.48/M output  (cache hit, 90% off)
+                     Supports thinking mode.
 
   deepseek-v4-flash  Fast & cheap tasks. Maps from Claude Haiku.
-                     Successor to deepseek-chat (deprecated 2026-07-24)
+                     $0.14/M input  |  $0.28/M output  (cache miss)
+                     $0.028/M input |  $0.28/M output  (cache hit, 80% off)
                      Supports thinking mode.
 
   NOTE: "deepseek-chat" and "deepseek-reasoner" are DEPRECATED as of
-        2026-07-24 and will map to deepseek-v4-flash automatically.
-        Upgrade your .env NOW to avoid disruption.
+        2026-07-24. Update your .env NOW to avoid disruption.
+
+
+COST AT 18 MILLION TOKENS/MONTH (60% input, 40% output)
+================================================================================
+
+  deepseek-v4-flash  →  ~$3.53 / month
+  deepseek-v4-pro    →  ~$43.85 / month
+  Claude Haiku 4.5   →  ~$46.80 / month
+  Claude Sonnet 4.6  →  ~$140.40 / month
+  Claude Opus 4.6    →  ~$234.00 / month
+
+  → V4 Flash saves ~97% vs Claude Sonnet at the same workload.
+  → V4 Pro is still ~97% cheaper than Claude Opus.
 
 
 VERIFICATION & TROUBLESHOOTING
@@ -111,7 +124,7 @@ Port 8082 already in use?
 
 API key error (401)?
    - Check .env file has correct keys
-   - Verify keys are not expired at platform.deepseek.com or build.nvidia.com
+   - Verify key at platform.deepseek.com
 
 Shell functions not found?
    source ~/.zshrc
@@ -122,75 +135,17 @@ Router won't start?
    python ai_router.py
 
 
-SWITCHING MODELS IN ONE COMMAND
-================================================================================
-
-# From Claude Pro to DeepSeek V4 Pro (default heavy routing):
-use-deepseek && cd ~/my-project && claude
-
-# From Claude Pro to DeepSeek V4 Flash only (fast mode):
-DEEPSEEK_BIG_MODEL=deepseek-v4-flash use-deepseek && cd ~/my-project && claude
-
-# From Claude Pro to NVIDIA (in one line):
-use-nvidia && cd ~/my-project && claude
-
-# Back to Claude Pro:
-use-claude && claude
-
-
-ENVIRONMENT VARIABLES (manual control)
-================================================================================
-
-If shell functions don't work, set env vars manually:
-
-TO USE DEEPSEEK V4 PRO:
-   export ANTHROPIC_BASE_URL="http://localhost:8082"
-   export ANTHROPIC_API_KEY="proxy-key"
-   export DEEPSEEK_BIG_MODEL="deepseek-v4-pro"
-   export DEEPSEEK_SMALL_MODEL="deepseek-v4-flash"
-   # Then start proxy: cd ~/Documents/claude-code-router && python ai_router.py
-
-TO USE DEEPSEEK V4 FLASH (all models):
-   export ANTHROPIC_BASE_URL="http://localhost:8082"
-   export ANTHROPIC_API_KEY="proxy-key"
-   export DEEPSEEK_BIG_MODEL="deepseek-v4-flash"
-   export DEEPSEEK_SMALL_MODEL="deepseek-v4-flash"
-   # Then start proxy: cd ~/Documents/claude-code-router && python ai_router.py
-
-TO USE NVIDIA:
-   export AI_PROVIDER="nvidia"
-   # Then start proxy with: AI_PROVIDER=nvidia python ai_router.py
-
-TO DISABLE PROXY (back to Claude):
-   unset ANTHROPIC_BASE_URL
-   unset ANTHROPIC_API_KEY
-   # Kill proxy: pkill -f ai_router.py
-
-
-COST COMPARISON (approximate per request)
-================================================================================
-
-DeepSeek V4 Pro:    pay-per-token (slightly higher than V4 Flash)
-DeepSeek V4 Flash:  $0.0002–0.001 per request
-NVIDIA Nemotron:    $0.00 (free tier with limits)
-Claude Haiku:       $0.002–0.01 per request
-Claude Sonnet:      $0.006–0.03 per request
-
-
 QUICK REFERENCE - COPY & PASTE
 ================================================================================
 
 # First time setup:
 cd ~/Documents/claude-code-router && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && cp .env.example .env
 
-# Switch to DeepSeek V4 Pro/Flash (default):
+# Switch to DeepSeek V4 (default: Pro for big, Flash for small):
 use-deepseek
 
 # Switch to DeepSeek V4 Flash only (fast, cheap):
 DEEPSEEK_BIG_MODEL=deepseek-v4-flash use-deepseek
-
-# Switch to NVIDIA:
-use-nvidia
 
 # Back to Claude:
 use-claude

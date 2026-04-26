@@ -1,51 +1,68 @@
 #!/bin/zsh
+# Claude Code Router - Shell Functions
+# Loaded from ~/.zshrc automatically
 
+# ─── Unalias everything first to prevent zsh parse errors ──────────────────
+# (zsh throws 'defining function based on alias' if name() is used over an alias)
+unalias router-status      2>/dev/null || true
+unalias router-start       2>/dev/null || true
+unalias router-stop        2>/dev/null || true
+unalias router-ping        2>/dev/null || true
+unalias router-logs        2>/dev/null || true
+unalias claude-mode        2>/dev/null || true
+unalias use-deepseek       2>/dev/null || true
+unalias use-claude         2>/dev/null || true
+unalias proxy-status       2>/dev/null || true
+unalias proxy-deepseek     2>/dev/null || true
+unalias proxy-deepseek-flash 2>/dev/null || true
+unalias proxy-claude       2>/dev/null || true
+
+# ─── Config ────────────────────────────────────────────────────────────────
 export CLAUDE_ROUTER_DIR="$HOME/Documents/claude-code-router"
 export CLAUDE_ROUTER_PORT="${ROUTER_PORT:-8082}"
 export CLAUDE_ROUTER_LOG="$CLAUDE_ROUTER_DIR/router.log"
 export CLAUDE_ROUTER_PID="$CLAUDE_ROUTER_DIR/router.pid"
 
-_router_cd() {
+# ─── Internal helpers ──────────────────────────────────────────────────────
+function _router_cd {
   cd "$CLAUDE_ROUTER_DIR" || return 1
 }
 
-_router_activate_venv() {
+function _router_activate_venv {
   [ -f "$CLAUDE_ROUTER_DIR/venv/bin/activate" ] && source "$CLAUDE_ROUTER_DIR/venv/bin/activate"
 }
 
-router-status() {
-  curl -fsS "http://127.0.0.1:${CLAUDE_ROUTER_PORT}/health" 2>/dev/null || echo "router not running"
-}
-
-router-logs() {
-  tail -f "$CLAUDE_ROUTER_LOG"
-}
-
-router-stop() {
+# ─── Core router commands ──────────────────────────────────────────────────
+function router-stop {
   if [ -f "$CLAUDE_ROUTER_PID" ]; then
+    local PID
     PID=$(cat "$CLAUDE_ROUTER_PID" 2>/dev/null)
     kill "$PID" >/dev/null 2>&1 || true
     rm -f "$CLAUDE_ROUTER_PID"
   fi
   pkill -f "python.*ai_router.py" >/dev/null 2>&1 || true
+  echo "Router stopped."
 }
 
-router-start() {
+function router-start {
   _router_cd || return 1
   _router_activate_venv
 
-  mkdir -p "$CLAUDE_ROUTER_DIR"
   touch "$CLAUDE_ROUTER_LOG"
 
+  # Already running?
   if curl -fsS "http://127.0.0.1:${CLAUDE_ROUTER_PORT}/health" >/dev/null 2>&1; then
     echo "✅ Router already running on port ${CLAUDE_ROUTER_PORT}"
     return 0
   fi
 
+  # Start detached — survives terminal close
   nohup python ai_router.py >> "$CLAUDE_ROUTER_LOG" 2>&1 &
   echo $! > "$CLAUDE_ROUTER_PID"
   disown
 
+  # Wait up to 10s for health endpoint
+  local i
   for i in {1..20}; do
     if curl -fsS "http://127.0.0.1:${CLAUDE_ROUTER_PORT}/health" >/dev/null 2>&1; then
       echo "✅ Router started on http://127.0.0.1:${CLAUDE_ROUTER_PORT}"
@@ -54,68 +71,81 @@ router-start() {
     sleep 0.5
   done
 
-  echo "❌ Router failed to start"
-  echo "Check logs with: router-logs"
+  echo "❌ Router failed to start — check logs:"
+  echo "   tail -f $CLAUDE_ROUTER_LOG"
   return 1
 }
 
-router-ping() {
+function router-status {
+  curl -s "http://127.0.0.1:${CLAUDE_ROUTER_PORT}/health" 2>/dev/null || echo "router not running"
+}
+
+function router-ping {
   curl -s "http://127.0.0.1:${CLAUDE_ROUTER_PORT}/ping"
 }
 
-proxy-deepseek() {
-  export AI_PROVIDER="deepseek"
-  export ANTHROPIC_BASE_URL="http://127.0.0.1:${CLAUDE_ROUTER_PORT}"
-  export ANTHROPIC_API_KEY="proxy-key"
-  router-stop >/dev/null 2>&1 || true
-  router-start || return 1
-  echo ""
-  echo "✅ DeepSeek proxy enabled"
-  echo "   Provider : $AI_PROVIDER"
-  echo "   Base URL : $ANTHROPIC_BASE_URL"
-  echo "   Next     : claude"
+function router-logs {
+  tail -f "$CLAUDE_ROUTER_LOG"
 }
 
-proxy-deepseek-flash() {
+# ─── Proxy switchers ───────────────────────────────────────────────────────
+
+function proxy-deepseek {
+  export AI_PROVIDER="deepseek"
+  export DEEPSEEK_BIG_MODEL="deepseek-v4-pro"
+  export DEEPSEEK_SMALL_MODEL="deepseek-v4-flash"
+  export ANTHROPIC_BASE_URL="http://127.0.0.1:${CLAUDE_ROUTER_PORT}"
+  export ANTHROPIC_API_KEY="proxy-key"
+  router-stop >/dev/null 2>&1
+  router-start || return 1
+  echo ""
+  echo "✅  DeepSeek V4 proxy active"
+  echo "    Sonnet/Opus → deepseek-v4-pro"
+  echo "    Haiku       → deepseek-v4-flash"
+  echo "    Run: claude"
+}
+
+function proxy-deepseek-flash {
   export AI_PROVIDER="deepseek"
   export DEEPSEEK_BIG_MODEL="deepseek-v4-flash"
   export DEEPSEEK_SMALL_MODEL="deepseek-v4-flash"
   export ANTHROPIC_BASE_URL="http://127.0.0.1:${CLAUDE_ROUTER_PORT}"
   export ANTHROPIC_API_KEY="proxy-key"
-  router-stop >/dev/null 2>&1 || true
+  router-stop >/dev/null 2>&1
   router-start || return 1
   echo ""
-  echo "✅ DeepSeek Flash proxy enabled"
-  echo "   Big model   : $DEEPSEEK_BIG_MODEL"
-  echo "   Small model : $DEEPSEEK_SMALL_MODEL"
-  echo "   Next        : claude"
+  echo "✅  DeepSeek V4 Flash proxy active (all models → flash)"
+  echo "    Run: claude"
 }
 
-proxy-claude() {
+function proxy-claude {
   unset ANTHROPIC_BASE_URL
   unset ANTHROPIC_API_KEY
   unset AI_PROVIDER
   unset DEEPSEEK_BIG_MODEL
   unset DEEPSEEK_SMALL_MODEL
-  router-stop >/dev/null 2>&1 || true
-  echo "✅ Direct Claude restored"
+  router-stop >/dev/null 2>&1
+  echo "✅  Direct Claude restored"
 }
 
-proxy-status() {
-  echo "ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-<unset>}"
-  echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-<unset>}"
-  echo "AI_PROVIDER=${AI_PROVIDER:-<unset>}"
+function proxy-status {
+  echo "──────────────────────────────────────"
+  echo "  ANTHROPIC_BASE_URL : ${ANTHROPIC_BASE_URL:-<unset (direct claude)>}"
+  echo "  ANTHROPIC_API_KEY  : ${ANTHROPIC_API_KEY:-<unset>}"
+  echo "  AI_PROVIDER        : ${AI_PROVIDER:-<unset>}"
+  echo "  DEEPSEEK_BIG_MODEL : ${DEEPSEEK_BIG_MODEL:-<from .env>}"
+  echo "──────────────────────────────────────"
   router-status
 }
 
-claude-mode() {
+function claude-mode {
   if [ -n "$ANTHROPIC_BASE_URL" ]; then
-    echo "PROXY MODE → DEEPSEEK"
+    echo "PROXY MODE → DEEPSEEK ($ANTHROPIC_BASE_URL)"
   else
-    echo "CLAUDE DIRECT"
+    echo "CLAUDE DIRECT (no proxy)"
   fi
 }
 
-# Backward-compatible aliases
+# ─── Backward-compatible aliases (safe: defined AFTER functions) ───────────
 alias use-deepseek='proxy-deepseek'
 alias use-claude='proxy-claude'

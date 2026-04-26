@@ -4,13 +4,13 @@
 
 <h3>🚀 Transparent Proxy for Claude Code</h3>
 
-<p>Route Claude Code to <strong>DeepSeek V3</strong> or <strong>DeepSeek V3 via NVIDIA</strong> when Claude rate limits hit.</p>
+<p>Route Claude Code to <strong>DeepSeek V4 Pro</strong>, <strong>DeepSeek V4 Flash</strong>, or <strong>DeepSeek V3 via NVIDIA</strong> when Claude rate limits hit.</p>
 
 <br>
 
 <img src="https://img.shields.io/badge/🔧_DIY_Solution-black?style=for-the-badge" alt="DIY Solution">&nbsp;
 <img src="https://img.shields.io/badge/🐍_Python_FastAPI-blue?style=for-the-badge" alt="Python FastAPI">&nbsp;
-<img src="https://img.shields.io/badge/🔄_2_Providers-yellow?style=for-the-badge" alt="2 Providers">&nbsp;
+<img src="https://img.shields.io/badge/🔄_3_Providers-yellow?style=for-the-badge" alt="3 Providers">&nbsp;
 <img src="https://img.shields.io/badge/💰_Cost_Saving-purple?style=for-the-badge" alt="Cost Saving">&nbsp;
 <img src="https://img.shields.io/badge/⚡_Transparent-green?style=for-the-badge" alt="Transparent">
 
@@ -23,11 +23,13 @@
 
 > **Note**: A personal proxy for developers needing alternative AI providers when Claude Code faces rate limits.
 
+> ⚠️ **DeepSeek V4 Upgrade (April 2026)**: `deepseek-chat` and `deepseek-reasoner` are deprecated on **2026-07-24**. They now map to `deepseek-v4-flash`. This project has been updated to use `deepseek-v4-pro` (big) and `deepseek-v4-flash` (small) directly.
+
 ## Quick Summary
 
-**What**: A transparent proxy that routes Claude Code requests to DeepSeek V3 or DeepSeek V3 via NVIDIA
-**Why**: Avoid Claude Pro rate limits and reduce costs
-**How**: Local FastAPI server converts Claude API format to OpenAI format
+**What**: A transparent proxy that routes Claude Code requests to DeepSeek V4 Pro, DeepSeek V4 Flash, or DeepSeek V3 via NVIDIA  
+**Why**: Avoid Claude Pro rate limits and reduce costs  
+**How**: Local FastAPI server converts Claude API format to OpenAI format  
 **When**: Use `use-deepseek` or `use-nvidia` when Claude limits hit, `use-claude` to switch back
 
 ## 🚀 Quick Start
@@ -46,21 +48,24 @@ cp .env.example .env
 # 3. Install shell functions
 source .zshrc.router
 
-# 4. Switch to DeepSeek (when Claude limits hit)
+# 4. Switch to DeepSeek V4 (when Claude limits hit)
 use-deepseek
+# → Claude Sonnet/Opus  maps to  deepseek-v4-pro
+# → Claude Haiku        maps to  deepseek-v4-flash
 
 # 5. Use Claude Code normally
 cd ~/your-project
 claude
 ```
 
-A local FastAPI proxy that transparently routes **Claude Code** API calls to **DeepSeek V3** or **DeepSeek V3 via NVIDIA** when your Anthropic rate limits hit.
+A local FastAPI proxy that transparently routes **Claude Code** API calls to **DeepSeek V4 Pro**, **DeepSeek V4 Flash**, or **DeepSeek V3 via NVIDIA** when your Anthropic rate limits hit.
 
 Claude Code thinks it's talking to Anthropic. The router intercepts every request, converts the Claude message format to OpenAI-compatible JSON, forwards it to your chosen provider, and converts the response back — completely transparent.
 
 ```
-Claude Code ──► localhost:8082 ──► DeepSeek V3  (or DeepSeek via NVIDIA)
-                 ai_router.py        ▲ your API key here
+Claude Code ──► localhost:8082 ──► DeepSeek V4 Pro   (heavy tasks)
+                 ai_router.py  └──► DeepSeek V4 Flash  (fast/cheap tasks)
+                                └──► DeepSeek V3 via NVIDIA
 ```
 
 ## Why This Project Exists
@@ -158,8 +163,10 @@ AI_PROVIDER=deepseek
 ROUTER_PORT=8082
 
 DEEPSEEK_API_KEY=sk-your-real-key-here
-DEEPSEEK_BIG_MODEL=deepseek-chat
-DEEPSEEK_SMALL_MODEL=deepseek-chat
+# Big model  → used for Claude Sonnet / Opus requests
+# Small model → used for Claude Haiku requests
+DEEPSEEK_BIG_MODEL=deepseek-v4-pro
+DEEPSEEK_SMALL_MODEL=deepseek-v4-flash
 
 NVIDIA_API_KEY=nvapi-your-real-key-here
 NVIDIA_BIG_MODEL=deepseek-ai/deepseek-v3.2
@@ -188,10 +195,48 @@ type use-deepseek
 
 ## Daily Usage
 
-### Hit your Claude Pro limit? Switch to DeepSeek:
+### Hit your Claude Pro limit? Switch to DeepSeek V4:
 
 ```bash
 use-deepseek
+# Claude Sonnet/Opus → deepseek-v4-pro (default .env)
+# Claude Haiku       → deepseek-v4-flash (default .env)
+```
+
+### Switching Between DeepSeek V4 Flash and V4 Pro
+
+You control the model mapping via the two `.env` variables:
+
+| Want | `DEEPSEEK_BIG_MODEL` | `DEEPSEEK_SMALL_MODEL` |
+|---|---|---|
+| **Pro for everything** | `deepseek-v4-pro` | `deepseek-v4-pro` |
+| **Flash for everything** | `deepseek-v4-flash` | `deepseek-v4-flash` |
+| **Mixed (default)** | `deepseek-v4-pro` | `deepseek-v4-flash` |
+
+**Option 1 — Permanent (edit `.env`):**
+```bash
+# Open .env and change:
+DEEPSEEK_BIG_MODEL=deepseek-v4-flash    # to force Flash everywhere
+DEEPSEEK_BIG_MODEL=deepseek-v4-pro      # to force Pro everywhere
+```
+
+**Option 2 — Session override (no file edit needed):**
+```bash
+# Use Flash only for this terminal session:
+DEEPSEEK_BIG_MODEL=deepseek-v4-flash use-deepseek
+
+# Use Pro only for this terminal session:
+DEEPSEEK_BIG_MODEL=deepseek-v4-pro DEEPSEEK_SMALL_MODEL=deepseek-v4-pro use-deepseek
+```
+
+**Option 3 — Switch inside Claude Code (slash command):**
+
+In Claude Code, run a shell command to swap models without stopping the session:
+```bash
+# In Claude Code's terminal, or via /bash:
+export DEEPSEEK_BIG_MODEL=deepseek-v4-flash
+# Then restart the proxy:
+router-stop && router-start
 ```
 
 ### Switch to NVIDIA Nemotron instead:
@@ -345,15 +390,25 @@ Different providers have varying tool calling implementations. Check:
 
 | Provider | Model (big) | Model (small) | Pricing | API Endpoint | Notes |
 |---|---|---|---|---|---|
-| DeepSeek | `deepseek-chat` (V3) | `deepseek-chat` | Pay-per-use (very cheap) | `https://api.deepseek.com/v1` | 8192 token limit, good tool support |
+| DeepSeek | `deepseek-v4-pro` | `deepseek-v4-flash` | Pay-per-use (very cheap) | `https://api.deepseek.com/v1` | 8192 token limit, thinking mode supported |
 | NVIDIA (DeepSeek V3) | `deepseek-ai/deepseek-v3.2` | `deepseek-ai/deepseek-v3.2` | Free tier available | `https://integrate.api.nvidia.com/v1` | DeepSeek V3 via NVIDIA, rate limits apply |
 | Gemini | `gemini/gemini-3-flash-preview` | `gemini/gemini-2.5-flash-lite` | Pay-per-use | `https://generativelanguage.googleapis.com/v1beta` | Google's Gemini models, three-tier mapping |
+
+### DeepSeek V4 Model Details
+
+| Model | Use Case | Claude Mapping | Thinking Mode | Notes |
+|---|---|---|---|---|
+| `deepseek-v4-pro` | Heavy/complex tasks | Sonnet, Opus | ✅ `reasoning_effort: high` | Higher cost, more capable |
+| `deepseek-v4-flash` | Fast, cheap tasks | Haiku | ✅ Supported | Successor to deprecated `deepseek-chat` |
+
+> ⚠️ **Deprecation**: `deepseek-chat` → `deepseek-v4-flash` and `deepseek-reasoner` → `deepseek-v4-flash` (thinking mode) on 2026-07-24.
 
 ### Cost Comparison (Approximate)
 
 | Model | Input (per 1M tokens) | Output (per 1M tokens) | ~Cost per Request |
 |-------|----------------------|----------------------|-------------------|
-| **DeepSeek V3** | $0.14 | $0.28 | **$0.0002–0.001** |
+| **DeepSeek V4 Flash** | ~$0.07 | ~$0.28 | **$0.0001–0.001** |
+| **DeepSeek V4 Pro** | ~$0.27 | ~$1.10 | **$0.0005–0.002** |
 | **NVIDIA DeepSeek V3** | Free tier | Free tier | **$0** (with limits) |
 | **Gemini 2.5 Flash** | $0.075 | $0.30 | **$0.0001–0.001** |
 | Claude Haiku 4.5 | $1.00 | $5.00 | $0.002–0.01 |
@@ -377,12 +432,14 @@ To add a new provider:
 
 ### Provider-Specific Notes
 
-#### DeepSeek
+#### DeepSeek V4
 - **Token limit**: 8192 max_tokens (automatically capped by proxy)
-- **Streaming**: Supported for most models
+- **Streaming**: Supported
 - **Tool calling**: Good compatibility with OpenAI format
 - **Image support**: Limited (base64 only via proxy conversion)
-- **Cost**: ~$0.14 per 1M tokens input, $0.28 per 1M tokens output
+- **Thinking mode**: Both `deepseek-v4-pro` and `deepseek-v4-flash` support `reasoning_effort` and `thinking: {type: enabled}`
+- **V4 Flash**: Direct successor to `deepseek-chat` — same speed/cost profile, improved capability
+- **V4 Pro**: Higher capability, optimized for complex reasoning tasks
 
 #### NVIDIA (DeepSeek V3)
 - **Free tier**: Limited requests per day
@@ -402,8 +459,8 @@ To add a new provider:
 
 ### Model Mapping Logic
 The proxy uses simple heuristics to map Claude models to provider models:
-- **Claude Sonnet/Opus** → Provider's "big_model" (e.g., `deepseek-chat`)
-- **Claude Haiku** → Provider's "small_model" (e.g., `deepseek-chat`)
+- **Claude Sonnet/Opus** → Provider's "big_model" (e.g., `deepseek-v4-pro`)
+- **Claude Haiku** → Provider's "small_model" (e.g., `deepseek-v4-flash`)
 
 For Gemini specifically:
 - **Claude Opus** → `GEMINI_BIG_MODEL` (gemini/gemini-3-flash-preview)
@@ -491,5 +548,6 @@ MIT — use freely, modify freely.
 ## Acknowledgments
 
 - **Claude Code** for the excellent CLI tool
-- **DeepSeek** and **NVIDIA** for providing alternative AI APIs
+- **DeepSeek** for providing V4 Pro and V4 Flash APIs
+- **NVIDIA** for enterprise-grade DeepSeek hosting
 - **FastAPI** and **httpx** for the robust Python web stack

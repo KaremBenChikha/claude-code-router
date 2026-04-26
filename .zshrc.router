@@ -1,66 +1,121 @@
-CLAUDE_ROUTER_DIR="$HOME/Documents/claude-code-router"
-CLAUDE_ROUTER_PYTHON="$CLAUDE_ROUTER_DIR/venv/bin/python3"
-CLAUDE_ROUTER_STATE="$CLAUDE_ROUTER_DIR/.state"
+#!/bin/zsh
 
-[ -f "$CLAUDE_ROUTER_STATE" ] && source "$CLAUDE_ROUTER_STATE"
+export CLAUDE_ROUTER_DIR="$HOME/Documents/claude-code-router"
+export CLAUDE_ROUTER_PORT="${ROUTER_PORT:-8082}"
+export CLAUDE_ROUTER_LOG="$CLAUDE_ROUTER_DIR/router.log"
+export CLAUDE_ROUTER_PID="$CLAUDE_ROUTER_DIR/router.pid"
 
-_start_router() {
-  local provider="${1:-deepseek}"
-  pkill -f "ai_router.py" 2>/dev/null
-  sleep 0.3
-  
-  # Start the router
-  AI_PROVIDER="$provider" "$CLAUDE_ROUTER_PYTHON" "$CLAUDE_ROUTER_DIR/ai_router.py" \
-    >> "$CLAUDE_ROUTER_DIR/router.log" 2>&1 &
-  sleep 2
-  
-  # Export vars for current terminal
-  export ANTHROPIC_BASE_URL="http://localhost:8082"
-  export ANTHROPIC_API_KEY="proxy-key"
-  export AI_PROVIDER="$provider"
-  
-  # Save state for NEW terminals
-  printf 'export ANTHROPIC_BASE_URL=http://localhost:8082\nexport ANTHROPIC_API_KEY=proxy-key\nexport AI_PROVIDER="%s"\n' "$provider" \
-    > "$CLAUDE_ROUTER_STATE"
-    
-  echo ""
-  echo "✅  Routing → $provider  (all terminals now use $provider)"
-  echo "    Open any project and run: claude"
-  echo ""
+_router_cd() {
+  cd "$CLAUDE_ROUTER_DIR" || return 1
 }
 
+_router_activate_venv() {
+  [ -f "$CLAUDE_ROUTER_DIR/venv/bin/activate" ] && source "$CLAUDE_ROUTER_DIR/venv/bin/activate"
+}
 
-use-deepseek() { _start_router deepseek; }
-use-nvidia()   { _start_router nvidia;   }
-use-gemini()   { _start_router gemini;   }
+router-status() {
+  curl -fsS "http://127.0.0.1:${CLAUDE_ROUTER_PORT}/health" 2>/dev/null || echo "router not running"
+}
 
-use-claude() {
-  pkill -f "ai_router.py" 2>/dev/null
+router-logs() {
+  tail -f "$CLAUDE_ROUTER_LOG"
+}
+
+router-stop() {
+  if [ -f "$CLAUDE_ROUTER_PID" ]; then
+    PID=$(cat "$CLAUDE_ROUTER_PID" 2>/dev/null)
+    kill "$PID" >/dev/null 2>&1 || true
+    rm -f "$CLAUDE_ROUTER_PID"
+  fi
+  pkill -f "python.*ai_router.py" >/dev/null 2>&1 || true
+}
+
+router-start() {
+  _router_cd || return 1
+  _router_activate_venv
+
+  mkdir -p "$CLAUDE_ROUTER_DIR"
+  touch "$CLAUDE_ROUTER_LOG"
+
+  if curl -fsS "http://127.0.0.1:${CLAUDE_ROUTER_PORT}/health" >/dev/null 2>&1; then
+    echo "✅ Router already running on port ${CLAUDE_ROUTER_PORT}"
+    return 0
+  fi
+
+  nohup python ai_router.py >> "$CLAUDE_ROUTER_LOG" 2>&1 &
+  echo $! > "$CLAUDE_ROUTER_PID"
+  disown
+
+  for i in {1..20}; do
+    if curl -fsS "http://127.0.0.1:${CLAUDE_ROUTER_PORT}/health" >/dev/null 2>&1; then
+      echo "✅ Router started on http://127.0.0.1:${CLAUDE_ROUTER_PORT}"
+      return 0
+    fi
+    sleep 0.5
+  done
+
+  echo "❌ Router failed to start"
+  echo "Check logs with: router-logs"
+  return 1
+}
+
+router-ping() {
+  curl -s "http://127.0.0.1:${CLAUDE_ROUTER_PORT}/ping"
+}
+
+proxy-deepseek() {
+  export AI_PROVIDER="deepseek"
+  export ANTHROPIC_BASE_URL="http://127.0.0.1:${CLAUDE_ROUTER_PORT}"
+  export ANTHROPIC_API_KEY="proxy-key"
+  router-stop >/dev/null 2>&1 || true
+  router-start || return 1
+  echo ""
+  echo "✅ DeepSeek proxy enabled"
+  echo "   Provider : $AI_PROVIDER"
+  echo "   Base URL : $ANTHROPIC_BASE_URL"
+  echo "   Next     : claude"
+}
+
+proxy-deepseek-flash() {
+  export AI_PROVIDER="deepseek"
+  export DEEPSEEK_BIG_MODEL="deepseek-v4-flash"
+  export DEEPSEEK_SMALL_MODEL="deepseek-v4-flash"
+  export ANTHROPIC_BASE_URL="http://127.0.0.1:${CLAUDE_ROUTER_PORT}"
+  export ANTHROPIC_API_KEY="proxy-key"
+  router-stop >/dev/null 2>&1 || true
+  router-start || return 1
+  echo ""
+  echo "✅ DeepSeek Flash proxy enabled"
+  echo "   Big model   : $DEEPSEEK_BIG_MODEL"
+  echo "   Small model : $DEEPSEEK_SMALL_MODEL"
+  echo "   Next        : claude"
+}
+
+proxy-claude() {
   unset ANTHROPIC_BASE_URL
   unset ANTHROPIC_API_KEY
-  rm -f "$CLAUDE_ROUTER_STATE"
-  echo ""
-  echo "✅  Back to Claude Pro  (proxy stopped)"
-  echo ""
+  unset AI_PROVIDER
+  unset DEEPSEEK_BIG_MODEL
+  unset DEEPSEEK_SMALL_MODEL
+  router-stop >/dev/null 2>&1 || true
+  echo "✅ Direct Claude restored"
+}
+
+proxy-status() {
+  echo "ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-<unset>}"
+  echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-<unset>}"
+  echo "AI_PROVIDER=${AI_PROVIDER:-<unset>}"
+  router-status
 }
 
 claude-mode() {
-  echo ""
   if [ -n "$ANTHROPIC_BASE_URL" ]; then
-    local prov
-    prov=$(curl -s http://localhost:8082/health 2>/dev/null \
-      | "$CLAUDE_ROUTER_PYTHON" -c \
-        "import sys,json; d=json.load(sys.stdin); print(d.get('provider','?').upper())" 2>/dev/null)
-    echo "🔀  PROXY MODE  →  ${prov:-unknown}"
-    echo "    $ANTHROPIC_BASE_URL"
+    echo "PROXY MODE → DEEPSEEK"
   else
-    echo "☁️   CLAUDE PRO  →  Direct Anthropic"
+    echo "CLAUDE DIRECT"
   fi
-  echo ""
 }
 
-alias router-start="cd $CLAUDE_ROUTER_DIR && source venv/bin/activate && python ai_router.py"
-alias router-stop='pkill -f ai_router.py && echo "Router stopped."'
-alias router-status='curl -s http://localhost:8082/health | python3 -m json.tool'
-alias router-ping='curl -s http://localhost:8082/ping | python3 -m json.tool'
-alias router-logs="tail -f $CLAUDE_ROUTER_DIR/router.log"
+# Backward-compatible aliases
+alias use-deepseek='proxy-deepseek'
+alias use-claude='proxy-claude'

@@ -1,7 +1,7 @@
-.env
-venv/
-__pycache__/
-*.pyc
-router.log
 .DS_Store
-.state
+node_modules/
+dist/
+.env
+
+# Local reference material — not for distribution
+.reference/
